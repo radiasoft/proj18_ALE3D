@@ -1,0 +1,156 @@
+################################################
+# Laser heating steel in 2D
+# Extinction parameter = 500 cm^-1
+# Absorptivity: 0.44
+# Power: 22.5 W, FWHM: 50 um
+# scanning speed: 0
+# Zhigang Wu, RadiaSoft LLC, 2019.3
+################################################
+
+def dim 2
+
+########################
+# OUTPUT parameter block
+########################
+OUTPUT
+  plotac 0
+  plotvar add tkelv absorb
+  plottime 1.0 50.0 2.0 100.0 5.0 300.0 10.0 1000.0
+  dumpwallinterval 60
+END
+
+########################
+# CONTROL parameter block
+########################
+CONTROL
+  e_cut 1.0e-15
+  p_cut 1.0e-11
+  u_cut 1.0e-12
+  q_cut 1.0e-12
+  strsscut 1.0e-15
+  stoptime 1000.0
+  dtinit .00025
+  dtmax 1.0
+  dtmin 1.e-6
+  axisym 1
+end # END-CONTROL
+
+###########################
+# MATERIAL parameter block
+###########################
+MATERIAL steel
+  matinput
+         rho 8.129  e0 0  v0 1  cvav 3.51575e-05
+         t0 310.0  p0 1.0e-6  eosvmax 2.0
+  msinput
+    ysmodel 100
+    elasmodel 1
+      shr_mod 0.718  lin_press 2.06  lin_temp 3.15e-4
+    eosmodel 304
+      rhoc2 1.2877  s1 1.58    g0 1.6      a 0.5
+      ec0 -0.0110232  ec1 -0.0184802  ec2  0.646422  ec3  0.0516168
+      em0  0.0738555  em1 0.208426    em2  0.734543  em3 -0.0436437
+    hardmodel 201
+      y0 0.0156    ybet   2.   n  0.5   ymax   0.025
+    failmodel 499
+  therminput tmtype 1 tref 293 cv 4.44E-06 cond1 4.3e-12
+
+  beamdepinput abs2dtable tabsorb1 ref2dtable trefidx1
+  table2d regular2 tabsorb1 4 5 1
+          .008 0.8 8.0 80.0               # densities
+          1. 300. 2000. 10000. 1000000.   # temperatures
+        5.0     5.0     5.0     5.0     5.0       # values at first  density
+        50.0    50.0    50.0    50.0    50.0     # values at second density
+        500.0   500.0   500.0   500.0   500.0    # values at third  density
+        5000.0  5000.0  5000.0  5000.0  5000.0   # values at fourth density
+
+  table2d regular2 trefidx1 4 5 1
+          .008 0.8 8.0 80.0               # densities
+          1. 300. 2000. 10000. 1000000.   # temperatures
+        6.947 6.947 6.947 6.947 6.947 # values at first  density
+        6.947 6.947 6.947 6.947 6.947 # values at second density
+        6.947 6.947 6.947 6.947 6.947 # values at third  density
+        6.947 6.947 6.947 6.947 6.947 # values at fourth density
+END
+
+###########################
+# REGION parameter block
+###########################
+REGION  1
+ matname steel
+END
+
+########################
+# DECOMP parameter block
+########################
+DECOMP
+  partitions 16
+  chomp
+end
+
+#######################
+# HYDRO
+#######################
+HYDRO
+  ssmachf .0095
+  qstop 100.
+  efrmtp 1
+  efrmtptol 1.0e-05
+
+  elem_integration 2
+  hgmodel 2
+end
+
+###########################
+# BOUNDARY parameter block
+###########################
+BOUNDARY
+# put convection BC on x=0 face
+  nodeset mintempbc xplane 0.0 1.0e-04
+  heat convection nodeset mintempbc  t_inf_const 310. h_exp 0.0  h_const 1.0e-13
+
+# apply laser source into x=0.006 face
+  heatgen laser beamname x6 power 22.5e-11 beamshape circle beamsize 0.0141554
+          distrib gaussian 0.6 center 0.21 0.00 0.00  direction  -1.0 0.0 0.0
+
+  hglocrecalc 2  # recalculate deposition tables every 2 cycles
+  numray 20      # 20 rays across beam, min each direction
+  rayscale 1.1   # ray pattern is 110% the beamsize, to stay on 2D tables
+  raymiss 1      # complain if a ray misses the mesh (0 to silence)
+  raysymm 1      # problem uses symmetry across beam (half misses mesh)
+end
+
+########################
+# THERMAL parameter block
+########################
+THERMAL
+  heatcond full
+  hcnewton 1
+  hcstep 3
+  hcdeltc 1
+  hcitran -1
+  hcalphat 1.0
+  hcnonl 1
+  hcmaxrf 50
+  hcdelmax 50.
+
+  solverparams
+    solverlib hypre
+    solver cg
+    precond diag
+    maxiter 500
+
+  # temperature initial conditions- uniform across block
+  INIT globaltemp 310.
+end
+
+########################
+# MESH parameter block
+########################
+MESH
+mrectangle
+      region_x 1 1 1  region_x 1 1 1  region_x 1 1 1
+      elems_x  9 10 10  length_x   0.003  0.005 0.006
+      elems_y 25 15 10  length_y   0.0025 0.005 0.01
+
+END
